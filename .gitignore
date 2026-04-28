@@ -1,0 +1,24 @@
+# Android / Gradle
+.gradle/
+build/
+.cxx/
+.externalNativeBuild/
+
+# Local config
+local.properties
+
+# IDE (Android Studio)
+.idea/
+*.iml
+
+# OS files
+.DS_Store
+
+# Logs & temp
+*.log
+
+# Capture folder
+captures/
+
+# JSON (if you want to ignore all)
+*.json

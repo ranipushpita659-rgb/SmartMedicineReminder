@@ -1,0 +1,15 @@
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <!-- Base application theme. -->
+    <style name="Base.Theme.SmartMedicineReminder" parent="Theme.Material3.DayNight.NoActionBar">
+        <!-- Customize your light theme here. -->
+        <item name="colorPrimary">@color/primary_blue</item>
+    </style>
+
+    <style name="Theme.SmartMedicineReminder" parent="Base.Theme.SmartMedicineReminder" />
+
+    <!-- Custom Shape Appearance for Medicine Images -->
+    <style name="RoundedImageView" parent="">
+        <item name="cornerSize">12dp</item>
+        <item name="cornerFamily">rounded</item>
+    </style>
+</resources>
