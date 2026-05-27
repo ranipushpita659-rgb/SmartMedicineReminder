@@ -20,5 +20,6 @@ local.properties
 # Capture folder
 captures/
 
-# JSON (if you want to ignore all)
-*.json
+# JSON
+# We want to keep google-services.json but can ignore others if needed
+!google-services.json

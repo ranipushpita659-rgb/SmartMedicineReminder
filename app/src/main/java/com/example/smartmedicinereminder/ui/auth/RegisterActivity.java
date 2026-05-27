@@ -1,5 +1,6 @@
 package com.example.smartmedicinereminder.ui.auth;
 
+import android.content.Intent;
 import android.os.Bundle;
 import android.text.TextUtils;
 import android.util.Patterns;
@@ -11,6 +12,7 @@ import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
 
+import com.example.smartmedicinereminder.MainActivity;
 import com.example.smartmedicinereminder.R;
 import com.google.android.material.textfield.TextInputEditText;
 import com.google.android.material.textfield.TextInputLayout;
@@ -23,7 +25,6 @@ import java.util.Map;
 
 /**
  * RegisterActivity handles new user registration using Firebase Authentication.
- * It also stores user profile information in Firebase Realtime Database.
  */
 public class RegisterActivity extends AppCompatActivity {
 
@@ -41,7 +42,6 @@ public class RegisterActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_register);
 
-        // Initialize Firebase
         mAuth = FirebaseAuth.getInstance();
         mDatabase = FirebaseDatabase.getInstance().getReference();
 
@@ -53,24 +53,17 @@ public class RegisterActivity extends AppCompatActivity {
         etUsername = findViewById(R.id.etUsername);
         etPassword = findViewById(R.id.etPassword);
         etConfirmPassword = findViewById(R.id.etConfirmPassword);
-        
         tilUsername = findViewById(R.id.tilUsername);
         tilPassword = findViewById(R.id.tilPassword);
         tilConfirmPassword = findViewById(R.id.tilConfirmPassword);
-        
         btnRegister = findViewById(R.id.btnRegister);
         tvLogin = findViewById(R.id.tvLogin);
-
-        // We should add a ProgressBar to activity_register.xml for better UX
-        // For now, I'll just use a Toast to show progress or assume it exists.
+        progressBar = findViewById(R.id.progressBar);
     }
 
     private void setupListeners() {
         btnRegister.setOnClickListener(v -> attemptRegistration());
-
-        tvLogin.setOnClickListener(v -> {
-            finish();
-        });
+        tvLogin.setOnClickListener(v -> finish());
     }
 
     private void attemptRegistration() {
@@ -80,21 +73,18 @@ public class RegisterActivity extends AppCompatActivity {
 
         boolean isValid = true;
 
-        // Reset errors
         tilUsername.setError(null);
         tilPassword.setError(null);
         tilConfirmPassword.setError(null);
 
-        // Validate username (Firebase Auth requires an email, so we treat username as email)
         if (TextUtils.isEmpty(username)) {
             tilUsername.setError(getString(R.string.error_field_required));
             isValid = false;
         } else if (!Patterns.EMAIL_ADDRESS.matcher(username).matches()) {
-            tilUsername.setError("Please enter a valid email address for Firebase registration");
+            tilUsername.setError("Please enter a valid email address");
             isValid = false;
         }
 
-        // Validate password
         if (TextUtils.isEmpty(password)) {
             tilPassword.setError(getString(R.string.error_field_required));
             isValid = false;
@@ -103,11 +93,7 @@ public class RegisterActivity extends AppCompatActivity {
             isValid = false;
         }
 
-        // Validate confirm password
-        if (TextUtils.isEmpty(confirmPassword)) {
-            tilConfirmPassword.setError(getString(R.string.error_field_required));
-            isValid = false;
-        } else if (!password.equals(confirmPassword)) {
+        if (!password.equals(confirmPassword)) {
             tilConfirmPassword.setError(getString(R.string.error_password_mismatch));
             isValid = false;
         }
@@ -118,19 +104,15 @@ public class RegisterActivity extends AppCompatActivity {
     }
 
     private void performFirebaseRegistration(String email, String password) {
-        // Show progress
-        btnRegister.setEnabled(false);
-        Toast.makeText(this, "Creating Account...", Toast.LENGTH_SHORT).show();
+        showLoading(true);
 
         mAuth.createUserWithEmailAndPassword(email, password)
                 .addOnCompleteListener(this, task -> {
                     if (task.isSuccessful()) {
-                        // Registration success
                         String userId = mAuth.getCurrentUser().getUid();
                         saveUserToDatabase(userId, email);
                     } else {
-                        // Registration failed
-                        btnRegister.setEnabled(true);
+                        showLoading(false);
                         String error = task.getException() != null ? task.getException().getMessage() : "Registration Failed";
                         Toast.makeText(RegisterActivity.this, "Error: " + error, Toast.LENGTH_LONG).show();
                     }
@@ -140,17 +122,33 @@ public class RegisterActivity extends AppCompatActivity {
     private void saveUserToDatabase(String userId, String email) {
         Map<String, Object> userMap = new HashMap<>();
         userMap.put("email", email);
-        userMap.put("role", "primary_user"); // Default role
+        userMap.put("role", "primary_user");
 
         mDatabase.child("users").child(userId).setValue(userMap)
                 .addOnCompleteListener(task -> {
-                    btnRegister.setEnabled(true);
+                    showLoading(false);
                     if (task.isSuccessful()) {
                         Toast.makeText(RegisterActivity.this, "Registration Successful", Toast.LENGTH_SHORT).show();
-                        finish();
+                        navigateToMain();
                     } else {
                         Toast.makeText(RegisterActivity.this, "Failed to save user data.", Toast.LENGTH_SHORT).show();
                     }
                 });
+    }
+
+    private void showLoading(boolean isLoading) {
+        progressBar.setVisibility(isLoading ? View.VISIBLE : View.GONE);
+        btnRegister.setEnabled(!isLoading);
+        etUsername.setEnabled(!isLoading);
+        etPassword.setEnabled(!isLoading);
+        etConfirmPassword.setEnabled(!isLoading);
+        tvLogin.setEnabled(!isLoading);
+    }
+
+    private void navigateToMain() {
+        Intent intent = new Intent(RegisterActivity.this, MainActivity.class);
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+        startActivity(intent);
+        finish();
     }
 }

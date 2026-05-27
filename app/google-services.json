@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "833461044624",
+    "project_id": "smart-medicine-reminder-f40cf",
+    "storage_bucket": "smart-medicine-reminder-f40cf.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:833461044624:android:711e4bb29765d8cecd9f15",
+        "android_client_info": {
+          "package_name": "com.example.smartmedicinereminder"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB0Xu_a6Y61o9ZB_J0fJ3z3mT8j34qo4wA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

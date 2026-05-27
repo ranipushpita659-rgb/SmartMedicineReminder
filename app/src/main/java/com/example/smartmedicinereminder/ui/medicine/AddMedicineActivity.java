@@ -1,44 +1,36 @@
 package com.example.smartmedicinereminder.ui.medicine;
 
-import android.content.Context;
-import android.content.Intent;
-import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
-import android.net.Uri;
+import android.app.TimePickerDialog;
 import android.os.Bundle;
 import android.text.TextUtils;
+import android.view.View;
 import android.widget.Button;
 import android.widget.CheckBox;
-import android.widget.ImageView;
+import android.widget.ProgressBar;
 import android.widget.Toast;
 
-import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
 
 import com.example.smartmedicinereminder.R;
 import com.example.smartmedicinereminder.models.Medicine;
+import com.example.smartmedicinereminder.utils.AlarmHelper;
 import com.google.android.material.textfield.TextInputEditText;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.database.DatabaseReference;
 import com.google.firebase.database.FirebaseDatabase;
 
-import java.io.File;
-import java.io.FileOutputStream;
-import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.Calendar;
 import java.util.List;
-import java.util.UUID;
+import java.util.Locale;
 
 public class AddMedicineActivity extends AppCompatActivity {
 
-    private static final int PICK_IMAGE_REQUEST = 1;
-
-    private ImageView ivMedicinePhoto;
-    private Button btnSelectPhoto, btnSaveMedicine;
-    private TextInputEditText etMedName, etQuantity;
-    private CheckBox cbMorning, cbNoon, cbNight;
-    private Uri imageUri;
+    private TextInputEditText etMedName, etDosage, etMedicineTime, etStock;
+    private CheckBox cbMorning, cbAfternoon, cbNight;
+    private Button btnSaveMedicine;
+    private ProgressBar progressBar;
 
     private DatabaseReference mDatabase;
     private FirebaseAuth mAuth;
@@ -57,14 +49,15 @@ public class AddMedicineActivity extends AppCompatActivity {
     }
 
     private void initViews() {
-        ivMedicinePhoto = findViewById(R.id.ivMedicinePhoto);
-        btnSelectPhoto = findViewById(R.id.btnSelectPhoto);
-        btnSaveMedicine = findViewById(R.id.btnSaveMedicine);
         etMedName = findViewById(R.id.etMedName);
-        etQuantity = findViewById(R.id.etQuantity);
+        etDosage = findViewById(R.id.etDosage);
+        etMedicineTime = findViewById(R.id.etMedicineTime);
+        etStock = findViewById(R.id.etStock);
         cbMorning = findViewById(R.id.cbMorning);
-        cbNoon = findViewById(R.id.cbNoon);
+        cbAfternoon = findViewById(R.id.cbAfternoon);
         cbNight = findViewById(R.id.cbNight);
+        btnSaveMedicine = findViewById(R.id.btnSaveMedicine);
+        progressBar = findViewById(R.id.progressBar);
     }
 
     private void setupToolbar() {
@@ -72,104 +65,89 @@ public class AddMedicineActivity extends AppCompatActivity {
         setSupportActionBar(toolbar);
         if (getSupportActionBar() != null) {
             getSupportActionBar().setDisplayHomeAsUpEnabled(true);
+            getSupportActionBar().setTitle("Add New Medicine");
         }
         toolbar.setNavigationOnClickListener(v -> finish());
     }
 
     private void setupListeners() {
-        btnSelectPhoto.setOnClickListener(v -> openFileChooser());
+        etMedicineTime.setOnClickListener(v -> showTimePicker());
         btnSaveMedicine.setOnClickListener(v -> saveMedicine());
     }
 
-    private void openFileChooser() {
-        Intent intent = new Intent();
-        intent.setType("image/*");
-        intent.setAction(Intent.ACTION_GET_CONTENT);
-        startActivityForResult(intent, PICK_IMAGE_REQUEST);
-    }
+    private void showTimePicker() {
+        Calendar calendar = Calendar.getInstance();
+        int hour = calendar.get(Calendar.HOUR_OF_DAY);
+        int minute = calendar.get(Calendar.MINUTE);
 
-    @Override
-    protected void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
-        super.onActivityResult(requestCode, resultCode, data);
-        if (requestCode == PICK_IMAGE_REQUEST && resultCode == RESULT_OK && data != null && data.getData() != null) {
-            imageUri = data.getData();
-            ivMedicinePhoto.setImageURI(imageUri);
-        }
+        TimePickerDialog timePickerDialog = new TimePickerDialog(this, (view, hourOfDay, minuteOfHour) -> {
+            String time = String.format(Locale.getDefault(), "%02d:%02d", hourOfDay, minuteOfHour);
+            etMedicineTime.setText(time);
+        }, hour, minute, false);
+        timePickerDialog.show();
     }
 
     private void saveMedicine() {
+        if (etMedName.getText() == null || etDosage.getText() == null || etMedicineTime.getText() == null || etStock.getText() == null) return;
+
         String name = etMedName.getText().toString().trim();
-        String quantity = etQuantity.getText().toString().trim();
+        String dosage = etDosage.getText().toString().trim();
+        String medTime = etMedicineTime.getText().toString().trim();
+        String stockStr = etStock.getText().toString().trim();
 
-        List<String> selectedTimeSlots = new ArrayList<>();
-        List<String> selectedTimeRanges = new ArrayList<>();
+        List<String> selectedPeriods = new ArrayList<>();
+        if (cbMorning.isChecked()) selectedPeriods.add("Morning");
+        if (cbAfternoon.isChecked()) selectedPeriods.add("Afternoon");
+        if (cbNight.isChecked()) selectedPeriods.add("Night");
 
-        if (cbMorning.isChecked()) {
-            selectedTimeSlots.add("Morning");
-            selectedTimeRanges.add("6:00 AM - 10:30 AM");
-        }
-        if (cbNoon.isChecked()) {
-            selectedTimeSlots.add("Noon");
-            selectedTimeRanges.add("12:00 PM - 3:00 PM");
-        }
-        if (cbNight.isChecked()) {
-            selectedTimeSlots.add("Night");
-            selectedTimeRanges.add("8:00 PM - 11:30 PM");
-        }
-
-        if (TextUtils.isEmpty(name) || TextUtils.isEmpty(quantity) || selectedTimeSlots.isEmpty()) {
-            Toast.makeText(this, "Please fill all fields and select at least one time slot", Toast.LENGTH_SHORT).show();
+        if (selectedPeriods.isEmpty()) {
+            Toast.makeText(this, "Please select at least one time period", Toast.LENGTH_SHORT).show();
             return;
         }
 
-        String timeSlotString = TextUtils.join(", ", selectedTimeSlots);
-        String timeRangeString = TextUtils.join(", ", selectedTimeRanges);
+        String period = TextUtils.join(", ", selectedPeriods);
 
-        saveDataLocallyAndSync(name, quantity, timeSlotString, timeRangeString);
-    }
-
-    private void saveDataLocallyAndSync(String name, String quantity, String timeSlot, String timeRange) {
-        btnSaveMedicine.setEnabled(false);
-        String medicineId = mDatabase.push().getKey();
-        String userId = mAuth.getCurrentUser().getUid();
-
-        String localImagePath = "";
-        if (imageUri != null) {
-            localImagePath = saveImageToInternalStorage(imageUri, medicineId);
+        if (TextUtils.isEmpty(name) || TextUtils.isEmpty(dosage) || TextUtils.isEmpty(medTime) || TextUtils.isEmpty(stockStr)) {
+            Toast.makeText(this, "Please fill all fields", Toast.LENGTH_SHORT).show();
+            return;
         }
 
-        saveToDatabase(medicineId, name, quantity, timeSlot, timeRange, localImagePath, userId);
-    }
-
-    private String saveImageToInternalStorage(Uri uri, String fileName) {
+        int stock;
         try {
-            InputStream inputStream = getContentResolver().openInputStream(uri);
-            Bitmap bitmap = BitmapFactory.decodeStream(inputStream);
-            
-            File directory = getDir("medicine_images", Context.MODE_PRIVATE);
-            File myPath = new File(directory, fileName + ".jpg");
-
-            FileOutputStream fos = new FileOutputStream(myPath);
-            bitmap.compress(Bitmap.CompressFormat.JPEG, 90, fos);
-            fos.close();
-            
-            return myPath.getAbsolutePath();
-        } catch (Exception e) {
-            e.printStackTrace();
-            return "";
+            stock = Integer.parseInt(stockStr);
+        } catch (NumberFormatException e) {
+            Toast.makeText(this, "Invalid stock value", Toast.LENGTH_SHORT).show();
+            return;
         }
-    }
 
-    private void saveToDatabase(String id, String name, String quantity, String timeSlot, String timeRange, String imageUrl, String userId) {
-        Medicine medicine = new Medicine(id, name, quantity, timeSlot, timeRange, imageUrl, userId);
-        mDatabase.child(id).setValue(medicine).addOnCompleteListener(task -> {
-            btnSaveMedicine.setEnabled(true);
+        setLoading(true);
+        String medicineId = mDatabase.push().getKey();
+        String userId = mAuth.getCurrentUser() != null ? mAuth.getCurrentUser().getUid() : "";
+
+        if (userId.isEmpty() || medicineId == null) {
+            Toast.makeText(this, "Error: Authentication or Database error", Toast.LENGTH_SHORT).show();
+            setLoading(false);
+            return;
+        }
+
+        Medicine medicine = new Medicine(medicineId, name, dosage, period, medTime, "", userId);
+        medicine.setStockQuantity(stock);
+
+        mDatabase.child(medicineId).setValue(medicine).addOnCompleteListener(task -> {
+            setLoading(false);
             if (task.isSuccessful()) {
-                Toast.makeText(AddMedicineActivity.this, "Medicine Added Successfully", Toast.LENGTH_SHORT).show();
+                Toast.makeText(this, "Medicine Added", Toast.LENGTH_SHORT).show();
+                AlarmHelper.scheduleMedicineAlarms(this, medicine);
                 finish();
             } else {
-                Toast.makeText(AddMedicineActivity.this, "Failed to save medicine to cloud", Toast.LENGTH_SHORT).show();
+                String error = task.getException() != null ? task.getException().getMessage() : "Unknown error";
+                Toast.makeText(this, "Error saving: " + error, Toast.LENGTH_SHORT).show();
             }
         });
+    }
+
+    private void setLoading(boolean isLoading) {
+        if (progressBar != null) progressBar.setVisibility(isLoading ? View.VISIBLE : View.GONE);
+        btnSaveMedicine.setEnabled(!isLoading);
     }
 }
